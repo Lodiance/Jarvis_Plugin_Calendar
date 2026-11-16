@@ -1,0 +1,12 @@
+{
+  "id": "calendar",
+  "version": "0.1.0",
+  "spec": "0.2",
+  "permissions": { "network": false, "secrets": [], "wiki": false },
+  "cards": [
+    { "id": "main", "title": "calendar", "ttl": 300, "size": { "default": [4, 4], "min": [3, 3] } }
+  ],
+  "tools": [
+    { "name": "calendar.add", "risk": "internal", "description": "新增一則筆記", "input": { "text": "string" }, "examples": [{ "text": "第一則筆記" }] }
+  ]
+}

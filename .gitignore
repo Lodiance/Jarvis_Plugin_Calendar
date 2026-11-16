@@ -1,0 +1,4 @@
+# written on the nas by the Jarvis install script, never committed
+data/
+.plugin-key
+node_modules/
