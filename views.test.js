@@ -41,7 +41,8 @@ test('month: navigation, per-day cells with strongest live tone, selected day ag
   ], { now, tz, month: '2026-11', date: '2026-11-20' });
   const [nav, body] = v.children;
   assert.deepEqual(nav.children.map(c => c.action?.input ?? c.text), [
-    { month: '2026-10' }, '2026 年 11 月', { month: '2026-12' }, { month: '2026-11', date: '2026-11-16' }]);
+    { month: '2026-10' }, '2026 年 11 月', { month: '2026-12' }, { month: '2026-11', date: '2026-11-16' },
+    { date: '2026-11-20' }, {}]); // ＋ 新增 on the selected day, 設定
   const cal = body.children[0];
   assert.equal(cal.days.length, 30);
   const d20 = cal.days.find(d => d.date === '2026-11-20'), d21 = cal.days.find(d => d.date === '2026-11-21');
@@ -68,7 +69,14 @@ test('event details: fields, recurring callout, back to month', () => {
     { label: '時間', value: '11/20（五）–11/22（日） 全天' }, { label: '地點', value: '台南' },
     { label: '行事曆', value: 'Home' }, { label: '狀態', value: '一般' }]);
   assert.deepEqual(v.children[3], { type: 'text', text: 'a\nb', pre: true });
+  assert.deepEqual(v.children.at(-1).children.map(b => b.label), ['回到月曆']); // recurring: no edit/delete
   assert.deepEqual(v.children.at(-1).children[0].action.input, { date: '2026-11-20' });
+  const one = eventView(ev('dentist', '2026-11-20T15:00', '2026-11-20T16:00'), { now, tz }).children.at(-1).children;
+  assert.deepEqual(one.map(b => [b.label, b.action.tool, b.style, b.confirm]), [
+    ['編輯', 'calendar.form', undefined, undefined],
+    ['刪除', 'calendar.delete', 'danger', '刪除「dentist」？'],
+    ['回到月曆', 'calendar.month', undefined, undefined],
+  ]);
   const clash = eventView(ev('x', '2026-11-16T09:00', '2026-11-16T10:00'), { now, tz, all: [ev('x', '2026-11-16T09:00', '2026-11-16T10:00'), ev('y', '2026-11-16T09:30', '2026-11-16T11:00')] });
   assert.equal(clash.children[1].items.at(-1).value, '時間衝突');
   assert.equal(clash.children[1].items[0].value, '11/16（一） 09:00–10:00');

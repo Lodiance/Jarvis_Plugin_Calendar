@@ -41,7 +41,8 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 
 ### 寫入（v0.2）
 
-- 新增：產生一個最小的 `VCALENDAR`/`VEVENT`（新的 `UID`、`DTSTAMP`），`PUT <行事曆>/<uid>.ics`，帶 `If-None-Match: *`。
+- 新增：產生一個最小的 `VCALENDAR`/`VEVENT`（新的 `UID`、`DTSTAMP`），`PUT <行事曆>/<uid>.ics`，帶 `If-None-Match: *`。非全天的時間一律寫成 UTC（`...Z`），不必附 `VTIMEZONE`。
+- 找行程：用 `REPORT calendar-query` 加上 `UID` 的 `prop-filter`，在每個行事曆裡找；iPhone 建立的行程，檔名不一定是 `<uid>.ics`。
 - 修改：先 `GET` 拿原始資料和 ETag，只改有傳的欄位，保留其他屬性，`PUT` 帶 `If-Match`。
 - 刪除：`DELETE` 帶 `If-Match`。
 - 收到 `412`（別處已經改過）：不重試，回 `notice`「行程在別處被改過，已重新載入」，並回傳最新的行程細節。
@@ -111,7 +112,7 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 使用者已經確認過 mockup：左邊月曆格、右邊當天清單。
 
 - 回應帶 `dialog: "wide"`。
-- **頂列**（`row`，`align: between`）：「‹」→ 上個月、「2026 年 11 月」、「›」→ 下個月、「今天」→ 今天；右邊「＋ 新增」→ `calendar.form`（`date` 是選中的日子）。
+- **頂列**（`row`，`align: between`）：「‹」→ 上個月、「2026 年 11 月」、「›」→ 下個月、「今天」→ 今天；右邊「＋ 新增」→ `calendar.form`（`date` 是選中的日子）、「設定」→ `calendar.settings`（沒有參數，回傳設定表單）。
 - **主體**（`grid`，`columns: [3, 1]`；窄的時候用 `adaptive` 改成上下排）：
   - 左：`calendar`，`month`、`selected`。`days[].items[]` 是當天全部行程（最多 20），每項帶 `text`、`tone`、`allday`、`strike`，`action` → `calendar.event`。`days[].action` → `calendar.month { month, date }`（換選中的日子）。格子裡顯示幾項、「+N」、窄的時候改畫色點，都由主程式決定。
   - 右：標題「11 月 16 日（一）」，下面是那天的 `agenda`（`bars: true`），`action` → `calendar.event`；沒有行程時「沒有行程」。
@@ -142,7 +143,9 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 
 ## 10. 工具
 
-時間參數：`YYYY-MM-DDTHH:MM`（本地時間）或 `YYYY-MM-DD`（全天）。`description` 給模型看，寫清楚格式。每個工具都要附 `examples`（`npm run plugin:check` 會呼叫）。
+時間參數：`YYYY-MM-DDTHH:MM`（本地時間）或 `YYYY-MM-DD`（全天）。全天行程的 `end`，進出都是最後一天（包含）。`description` 給模型看，寫清楚格式。
+
+`calendar.create` 以外的工具都要附 `examples`，`npm run plugin:check` 會呼叫它們。`create` 不附，因為 check 拿到祕密時會真的新增一筆行程。`update`、`delete` 的範例用不存在的 `uid`，只會回「找不到」。
 
 | 工具 | `risk` | `input` | 說明 | 版本 |
 |---|---|---|---|---|
@@ -151,7 +154,7 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 | `calendar.event` | `read` | `uid`、`start`（`string`；重複行程用 `start` 指定哪一次） | 行程細節（§8） | v0.1 |
 | `calendar.form` | `read` | `date`、`uid`（`string`，都可省略） | 新增或編輯表單（§9） | v0.2 |
 | `calendar.create` | `internal` | `title`、`start`、`end`、`location`、`notes`、`calendar`（`string`）、`allday`（`boolean`） | 新增行程 | v0.2 |
-| `calendar.update` | `internal` | `uid` 加上和 `create` 相同的欄位，只改有傳的 | 修改行程；重複行程拒絕 | v0.2 |
+| `calendar.update` | `internal` | `uid` 加上和 `create` 相同的欄位（`calendar` 除外，不能換行事曆），只改有傳的 | 修改行程；重複行程拒絕 | v0.2 |
 | `calendar.delete` | `internal` | `uid` | 刪除行程；重複行程拒絕 | v0.2 |
 | `calendar.settings` | `internal` | `timezone`、`calendar`（`string`）、`days`（`number`） | 改 §4 的設定；沒有參數時回傳設定表單 | v0.2 |
 

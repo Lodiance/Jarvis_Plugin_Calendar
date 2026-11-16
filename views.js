@@ -105,6 +105,8 @@ export function monthView(events, { now = new Date(), tz, month, date }) {
       { type: 'text', text: `${month.slice(0, 4)} 年 ${+month.slice(5, 7)} 月`, title: true },
       { type: 'button', label: '›', action: go({ month: shiftMonth(month, 1) }) },
       { type: 'button', label: '今天', action: go({ month: today.slice(0, 7), date: today }) },
+      { type: 'button', label: '＋ 新增', style: 'primary', action: { tool: 'calendar.form', input: { date } } },
+      { type: 'button', label: '設定', action: { tool: 'calendar.settings', input: {} } },
     ] },
     { type: 'grid', columns: 2, children: [
       { type: 'calendar', month, selected: date, days },
@@ -147,7 +149,40 @@ export function eventView(ev, { now = new Date(), tz, all = [ev] }) {
     ] },
     ...(c.description ? [{ type: 'text', text: c.description, pre: true }] : []),
     { type: 'row', align: 'end', children: [
+      ...(c.recurring ? [] : [
+        { type: 'button', label: '編輯', action: { tool: 'calendar.form', input: { uid: c.uid } } },
+        { type: 'button', label: '刪除', style: 'danger', confirm: `刪除「${c.title || '（無標題）'}」？`, action: { tool: 'calendar.delete', input: { uid: c.uid } } },
+      ]),
       { type: 'button', label: '回到月曆', action: { tool: 'calendar.month', input: { date: localTime(c.start, tz).slice(0, 10) } } },
     ] },
   ] };
 }
+
+// §9 add/edit form. `ev` (parsed, non-recurring) means edit; otherwise a new event on `date`.
+// All-day `end` in the form is the last day, inclusive; the date fields are datetime, all-day takes the date part.
+export function formView({ ev, date, tz, cals = [], calendar }) {
+  const local = d => localTime(d, tz).slice(0, 16);
+  const start = ev ? local(ev.start) : `${date}T09:00`;
+  const end = !ev ? undefined : ev.allday ? daysOf(ev, tz).at(-1) + 'T00:00' : local(ev.end);
+  return { type: 'form', submit: ev
+    ? { tool: 'calendar.update', input: { uid: ev.uid }, label: '儲存' }
+    : { tool: 'calendar.create', label: '新增', style: 'primary' }, children: [
+    { type: 'input', name: 'title', label: '標題', value: ev?.title ?? '', required: true, max_length: 200 },
+    { type: 'checkbox', name: 'allday', label: '全天', checked: ev?.allday ?? false },
+    { type: 'date', name: 'start', label: '開始', mode: 'datetime', value: start, required: true },
+    { type: 'date', name: 'end', label: '結束（留空：一小時；全天則同一天）', mode: 'datetime', ...(end && { value: end }) },
+    { type: 'input', name: 'location', label: '地點', value: ev?.location ?? '', max_length: 200 },
+    { type: 'input', name: 'notes', label: '備註', value: ev?.description ?? '', multiline: true, max_length: 4000 },
+    // Moving an event between calendars isn't supported, so only new events pick one.
+    ...(!ev && cals.length > 1 ? [{ type: 'select', name: 'calendar', label: '行事曆', value: calendar ?? cals[0].name,
+      options: cals.map(c => ({ value: c.name, label: c.name })) }] : []),
+  ] };
+}
+
+// §4 settings form; `settings` is what's saved, `cals` the calendars to choose from.
+export const settingsView = ({ settings, days, cals }) => ({ type: 'form', submit: { tool: 'calendar.settings', label: '儲存' }, children: [
+  { type: 'input', name: 'timezone', label: '時區（例如 Asia/Taipei；留空用行事曆的時區）', value: settings.timezone ?? '', max_length: 60 },
+  { type: 'number', name: 'days', label: '卡片顯示今天起幾天', value: days, min: 1, max: 14, step: 1 },
+  ...(cals.length ? [{ type: 'select', name: 'calendar', label: '新增行程預設寫入', value: settings.calendar ?? cals[0].name,
+    options: cals.map(c => ({ value: c.name, label: c.name })) }] : []),
+] });

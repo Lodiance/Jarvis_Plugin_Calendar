@@ -2,7 +2,19 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { listCalendars, fetchEvents, parseEvents, classify, zonedToUtc, localTime, CalDavError } from './caldav.js';
+import { listCalendars, fetchEvents, parseEvents, classify, zonedToUtc, localTime, CalDavError, newEventIcs, editEventIcs } from './caldav.js';
+
+test('written iCalendar: escaped text, 75-octet folding that never splits a character, round-trips', () => {
+  const title = '很長的標題，有逗號;分號\\反斜線'.repeat(4);
+  const out = newEventIcs('u1', { title, notes: 'a\nb', times: { allday: true, start: '2026-11-20', end: '2026-11-21' } }, new Date(0));
+  for (const line of out.split('\r\n')) assert.ok(Buffer.byteLength(line) <= 75, line);
+  assert.doesNotMatch(out, /�/);
+  const [ev] = parseEvents(out, 'Asia/Taipei');
+  assert.deepEqual([ev.title, ev.description, ev.allday], [title, 'a\nb', true]);
+  const edited = editEventIcs(out, { title: '短' }, new Date(0));
+  assert.deepEqual([parseEvents(edited, 'Asia/Taipei')[0].title, (edited.match(/^SUMMARY/gm) ?? []).length], ['短', 1]);
+  assert.match(editEventIcs(edited, { location: 'x' }), /SEQUENCE:2/);
+});
 
 const ics = (...events) => ['BEGIN:VCALENDAR', 'VERSION:2.0',
   'BEGIN:VTIMEZONE', 'TZID:Asia/Taipei', 'DESCRIPTION:not an event', 'END:VTIMEZONE',

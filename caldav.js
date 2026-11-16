@@ -7,21 +7,19 @@ export class CalDavError extends Error {
 
 const NS = 'xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"';
 
-async function dav(method, url, { user, password }, body) {
+async function dav(method, url, { user, password }, body, { headers = { depth: '1', 'content-type': 'application/xml; charset=utf-8' }, ok = [207] } = {}) {
   let res;
   try {
     res = await fetch(url, {
       method, body, signal: AbortSignal.timeout(6000),
-      headers: {
-        authorization: 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64'),
-        depth: '1', 'content-type': 'application/xml; charset=utf-8',
-      },
+      headers: { authorization: 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64'), ...headers },
     });
   } catch (e) {
     throw new CalDavError(0, e.name === 'TimeoutError' ? '連線 Radicale 逾時' : '無法連線 Radicale');
   }
   if (res.status === 401) throw new CalDavError(401, 'Radicale 帳號或密碼錯誤');
-  if (res.status !== 207) throw new CalDavError(res.status, `Radicale 回應 ${res.status}`);
+  if (res.status === 412) throw new CalDavError(412, '行程在別處被改過');
+  if (!ok.includes(res.status)) throw new CalDavError(res.status, `Radicale 回應 ${res.status}`);
   return res.text();
 }
 
@@ -60,6 +58,36 @@ export async function fetchEvents(cal, creds, from, to, tz) {
     `<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range ${range}/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`);
   return els(xml, 'calendar-data').flatMap(d => parseEvents(unxml(d), tz)).map(e => ({ ...e, calendar: cal.name }));
 }
+
+// --- writing (§2 寫入): find the stored resource by UID, then PUT/DELETE it with its ETag ---
+
+const xmlText = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const unfold = ics => ics.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+const hasUid = (ics, uid) => unfold(ics).some(l => /^UID[;:]/i.test(l) && l.slice(l.indexOf(':') + 1) === uid);
+
+// The stored (unexpanded) resource holding `uid`: { cal, href, etag, ics }, or null.
+export async function findEvent(cals, creds, uid) {
+  const hits = await Promise.all(cals.map(async cal => {
+    const xml = await dav('REPORT', cal.href, creds,
+      `<?xml version="1.0" encoding="utf-8"?><C:calendar-query ${NS}><D:prop><D:getetag/><C:calendar-data/></D:prop>` +
+      `<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:prop-filter name="UID">` +
+      `<C:text-match collation="i;octet">${xmlText(uid)}</C:text-match></C:prop-filter></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`);
+    return els(xml, 'response').map(r => ({
+      cal, href: new URL(unxml(els(r, 'href')[0]).trim(), cal.href).href,
+      etag: unxml(els(r, 'getetag')[0]).trim(), ics: unxml(els(r, 'calendar-data')[0]),
+    }));
+  }));
+  return hits.flat().find(h => hasUid(h.ics, uid)) ?? null; // text-match is a substring match
+}
+
+// Without `etag` it only creates (If-None-Match: *); with it, only overwrites that exact version.
+export const putEvent = (href, creds, ics, etag) => dav('PUT', href, creds, ics, {
+  headers: { 'content-type': 'text/calendar; charset=utf-8', ...(etag ? { 'if-match': etag } : { 'if-none-match': '*' }) },
+  ok: [200, 201, 204],
+});
+export const deleteEvent = (href, creds, etag) => dav('DELETE', href, creds, undefined, { headers: { 'if-match': etag }, ok: [200, 204] });
+
+export const isRecurring = ics => unfold(ics).some(l => /^(RRULE|RECURRENCE-ID)[;:]/i.test(l));
 
 // --- iCalendar ---
 
@@ -144,4 +172,62 @@ export function classify(events, now = new Date()) {
       : e.end <= now ? { state: 'ended', tone: 'muted' }
       : { state: 'normal' }),
   }));
+}
+
+// --- iCalendar writing ---
+// Fields: title, location, notes (strings; '' removes) and times = { allday, start, end }:
+// all-day → 'YYYY-MM-DD' strings with `end` exclusive; timed → Dates, written as UTC (no VTIMEZONE needed).
+
+const esc = s => String(s).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/[,;]/g, '\\$&');
+const utc = d => d.toISOString().replace(/[-:]|\.\d+/g, '');
+// Lines are at most 75 octets (RFC 5545 §3.1); never split inside a character.
+function fold(line) {
+  const out = [];
+  let cur = '', bytes = 0;
+  for (const ch of line) {
+    const n = Buffer.byteLength(ch);
+    if (bytes + n > 75) { out.push(cur); cur = ' '; bytes = 1; }
+    cur += ch; bytes += n;
+  }
+  return [...out, cur].join('\r\n');
+}
+const PROPS = { title: ['SUMMARY'], location: ['LOCATION'], notes: ['DESCRIPTION'], times: ['DTSTART', 'DTEND', 'DURATION'] };
+function propLines(f) {
+  const out = [];
+  if (f.title) out.push('SUMMARY:' + esc(f.title));
+  if (f.location) out.push('LOCATION:' + esc(f.location));
+  if (f.notes) out.push('DESCRIPTION:' + esc(f.notes));
+  if (f.times) {
+    const { allday, start, end } = f.times;
+    out.push(...(allday
+      ? [`DTSTART;VALUE=DATE:${start.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${end.replace(/-/g, '')}`]
+      : [`DTSTART:${utc(start)}`, `DTEND:${utc(end)}`]));
+  }
+  return out;
+}
+
+export const newEventIcs = (uid, f, now = new Date()) => [
+  'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Jarvis//calendar//ZH', 'BEGIN:VEVENT',
+  'UID:' + uid, 'DTSTAMP:' + utc(now), ...propLines(f), 'END:VEVENT', 'END:VCALENDAR',
+].map(fold).join('\r\n') + '\r\n';
+
+// Rewrites only the fields present in `f`; every other line (alarms, attendees, X- props, VTIMEZONE) stays.
+export function editEventIcs(ics, f, now = new Date()) {
+  const drop = new Set(['DTSTAMP', 'LAST-MODIFIED', 'SEQUENCE',
+    ...Object.keys(PROPS).filter(k => f[k] !== undefined).flatMap(k => PROPS[k])]);
+  const out = [];
+  let depth = 0, seq = 0;
+  for (const l of unfold(ics)) {
+    if (!l) continue;
+    const name = l.match(/^[\w-]+/)?.[0].toUpperCase();
+    if (name === 'BEGIN' && depth) depth++;
+    else if (name === 'BEGIN' && /^BEGIN:VEVENT$/i.test(l.trim())) {
+      depth = 1;
+      out.push(l, 'DTSTAMP:' + utc(now), 'LAST-MODIFIED:' + utc(now), ...propLines(f));
+      continue;
+    } else if (name === 'END' && depth && --depth === 0) out.push(`SEQUENCE:${seq + 1}`);
+    else if (depth === 1 && drop.has(name)) { if (name === 'SEQUENCE') seq = parseInt(l.split(':')[1], 10) || 0; continue; }
+    out.push(l);
+  }
+  return out.map(fold).join('\r\n') + '\r\n';
 }

@@ -1,6 +1,6 @@
 {
   "id": "calendar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "spec": "0.2",
   "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false },
   "cards": [
@@ -9,7 +9,7 @@
   "tools": [
     {
       "name": "calendar.list", "risk": "read",
-      "description": "列出使用者行事曆在一段時間內的行程。from、to 是本地時間，格式 YYYY-MM-DD（整天）或 YYYY-MM-DDTHH:MM；to 是 YYYY-MM-DD 時包含那一整天。沒給 from 就是今天，沒給 to 就和 from 同一天。區間最多 62 天。回傳 [{uid, start, end, allday, title, status, location, calendar, recurring}]，start、end 是本地時間；status 是 CONFIRMED、TENTATIVE、CANCELLED 或空字串。",
+      "description": "列出使用者行事曆在一段時間內的行程。from、to 是本地時間，格式 YYYY-MM-DD（整天）或 YYYY-MM-DDTHH:MM；to 是 YYYY-MM-DD 時包含那一整天。沒給 from 就是今天，沒給 to 就和 from 同一天。區間最多 62 天。回傳 [{uid, start, end, allday, title, status, location, calendar, recurring}]：start、end 是本地時間，全天行程是 YYYY-MM-DD 且 end 是最後一天（包含）；status 是 CONFIRMED、TENTATIVE、CANCELLED 或空字串；recurring 為 true 的行程不能修改或刪除。",
       "input": { "from": "string", "to": "string" },
       "examples": [{ "from": "2026-11-16", "to": "2026-11-22" }]
     },
@@ -24,6 +24,35 @@
       "description": "顯示一個行程的細節。uid 和 start 都必填，直接用 calendar.list 回傳的 uid 和 start；重複行程靠 start 分辨是哪一次。",
       "input": { "uid": "string", "start": "string" },
       "examples": [{ "uid": "example", "start": "2026-11-16T10:00" }]
+    },
+    {
+      "name": "calendar.form", "risk": "read",
+      "description": "顯示新增或編輯行程的表單（給畫面用）。給 uid 是編輯那個行程；不給 uid 是新增，date（YYYY-MM-DD）是預設日期。",
+      "input": { "date": "string", "uid": "string" },
+      "examples": [{ "date": "2026-11-16" }]
+    },
+    {
+      "name": "calendar.create", "risk": "internal",
+      "description": "新增一個行程。title、start 必填。start、end 是本地時間 YYYY-MM-DDTHH:MM；全天行程設 allday: true（或 start 只給 YYYY-MM-DD），end 給最後一天 YYYY-MM-DD（包含）。沒給 end：一般行程是開始後 1 小時，全天行程是同一天。location、notes 選填；calendar 是行事曆名稱，省略時用預設的行事曆。",
+      "input": { "title": "string", "start": "string", "end": "string", "allday": "boolean", "location": "string", "notes": "string", "calendar": "string" }
+    },
+    {
+      "name": "calendar.update", "risk": "internal",
+      "description": "修改一個行程，只改有傳的欄位，其他保持原樣。uid 必填（從 calendar.list 取得）；其他欄位和 calendar.create 相同，location 或 notes 傳空字串會清除。只改 start 或 allday 時，end 會重設成預設值，所以要保留長度就一起傳 end。重複行程不能修改，會回錯誤。不能把行程搬到別的行事曆。",
+      "input": { "uid": "string", "title": "string", "start": "string", "end": "string", "allday": "boolean", "location": "string", "notes": "string" },
+      "examples": [{ "uid": "example", "title": "改名" }]
+    },
+    {
+      "name": "calendar.delete", "risk": "internal",
+      "description": "刪除一個行程。uid 必填（從 calendar.list 取得）。重複行程不能刪除，會回錯誤。",
+      "input": { "uid": "string" },
+      "examples": [{ "uid": "example" }]
+    },
+    {
+      "name": "calendar.settings", "risk": "internal",
+      "description": "改這個 plugin 的設定。timezone 是 IANA 時區名稱（例如 Asia/Taipei，空字串表示用行事曆的時區）；days 是卡片顯示今天起幾天（1–14 的整數）；calendar 是新增行程時預設寫入的行事曆名稱（空字串表示第一個）。只改有傳的；什麼都不傳時回傳設定表單。",
+      "input": { "timezone": "string", "days": "number", "calendar": "string" },
+      "examples": [{}]
     }
   ]
 }
