@@ -1,4 +1,4 @@
-# calendar plugin image (Jarvis plugin spec 0.2). Needs only this folder, not the Jarvis source.
+# calendar plugin image (Jarvis plugin spec 0.3). Needs only this folder, not the Jarvis source.
 # On the nas the Jarvis install script builds it and gives it PLUGIN_KEY; /data is this plugin's data folder.
 FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 

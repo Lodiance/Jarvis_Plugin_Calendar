@@ -46,14 +46,12 @@ function resolveTimes({ allday, start, end }, tz) {
   return { allday: false, start: s, end: e };
 }
 
-// getSecrets() → { caldav_url, caldav_user, caldav_password } for the current request; clock() → now;
-// dataDir holds settings.json (§4).
-export function app(getSecrets, clock = () => new Date(), dataDir = process.env.DATA_DIR) {
-  const creds = () => {
-    const s = getSecrets() ?? {};
-    return s.caldav_url && s.caldav_user && s.caldav_password ? { url: s.caldav_url, user: s.caldav_user, password: s.caldav_password } : null;
-  };
-  const need = () => { const c = creds(); if (!c) throw new Error(SETUP); return c; };
+// Kit 0.3 hands every handler this request's secrets { caldav_url, caldav_user, caldav_password } ({} when unset):
+// cards as (secrets), tools as (input, secrets). clock() → now; dataDir holds settings.json (§4).
+export function app(clock = () => new Date(), dataDir = process.env.DATA_DIR) {
+  const creds = (s = {}) =>
+    s.caldav_url && s.caldav_user && s.caldav_password ? { url: s.caldav_url, user: s.caldav_user, password: s.caldav_password } : null;
+  const need = s => { const c = creds(s); if (!c) throw new Error(SETUP); return c; };
 
   // A broken or missing file means defaults; the card must never fail on it.
   const file = dataDir && path.join(dataDir, 'settings.json');
@@ -98,15 +96,15 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
   const on412 = (c, uid) => e => { if (e instanceof CalDavError && e.status === 412) return conflict(c, uid); throw e; };
 
   // §9: after a write, back to that day's month view with a notice.
-  async function after(day, notice, result) {
-    const { view } = await tools['calendar.month']({ date: day });
+  async function after(secrets, day, notice, result) {
+    const { view } = await tools['calendar.month']({ date: day }, secrets);
     return { result, view, notice };
   }
   const dayOf = (times, tz) => (times.allday ? times.start : localTime(times.start, tz).slice(0, 10));
 
   const tools = {
-    async 'calendar.list'({ from, to } = {}) {
-      const c = need(), now = clock();
+    async 'calendar.list'({ from, to } = {}, secrets) {
+      const c = need(secrets), now = clock();
       const f = arg(from, WHEN, 'from');
       const t = arg(to, WHEN, 'to');
       const start = tz => zonedToUtc(f ?? localTime(now, tz).slice(0, 10), tz);
@@ -127,8 +125,8 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       };
     },
 
-    async 'calendar.month'({ month, date } = {}) {
-      const c = need(), now = clock();
+    async 'calendar.month'({ month, date } = {}, secrets) {
+      const c = need(secrets), now = clock();
       let m = arg(month, MONTH, 'month');
       const d = arg(date, DAY, 'date');
       m ??= d?.slice(0, 7);
@@ -141,8 +139,8 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       return { result: { month: shown.month, date: shown.selected, events: events.length }, view };
     },
 
-    async 'calendar.event'({ uid, start } = {}) {
-      const c = need(), now = clock();
+    async 'calendar.event'({ uid, start } = {}, secrets) {
+      const c = need(secrets), now = clock();
       if (typeof uid !== 'string' || !uid) throw new Error('uid 必填');
       const s = arg(start, WHEN, 'start');
       if (!s) throw new Error('start 必填');
@@ -156,8 +154,8 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       };
     },
 
-    async 'calendar.form'({ date, uid } = {}) {
-      const c = need();
+    async 'calendar.form'({ date, uid } = {}, secrets) {
+      const c = need(secrets);
       if (uid) {
         const { tz, ev } = await target(c, uid);
         return { result: { uid, title: ev.title }, view: formView({ ev, tz }) };
@@ -168,8 +166,8 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       return { result: { date: d }, view: formView({ date: d, tz, cals, calendar: pick(cals, settings().calendar)?.name }) };
     },
 
-    async 'calendar.create'(input = {}) {
-      const c = need(), now = clock();
+    async 'calendar.create'(input = {}, secrets) {
+      const c = need(secrets), now = clock();
       const title = str(input.title, 200, 'title');
       if (!title) throw new Error('title 必填');
       const start = arg(input.start, WHEN, 'start');
@@ -183,11 +181,11 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       const uid = randomUUID();
       await putEvent(new URL(uid + '.ics', cal.href.replace(/\/?$/, '/')).href, c,
         newEventIcs(uid, { title, location: str(input.location, 200, 'location'), notes: str(input.notes, 4000, 'notes'), times }, now));
-      return after(dayOf(times, tz), `已新增「${title}」`, { uid, title, calendar: cal.name });
+      return after(secrets, dayOf(times, tz), `已新增「${title}」`, { uid, title, calendar: cal.name });
     },
 
-    async 'calendar.update'(input = {}) {
-      const c = need(), now = clock();
+    async 'calendar.update'(input = {}, secrets) {
+      const c = need(secrets), now = clock();
       const { tz, hit, ev } = await target(c, input.uid);
       const f = { title: str(input.title, 200, 'title'), location: str(input.location, 200, 'location'), notes: str(input.notes, 4000, 'notes') };
       if (f.title === '') throw new Error('標題不能是空的');
@@ -202,22 +200,22 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
       if (Object.values(f).every(v => v === undefined)) throw new Error('沒有要改的欄位');
       const done = await putEvent(hit.href, c, editEventIcs(hit.ics, f, now), hit.etag).then(() => null, on412(c, ev.uid));
       if (done) return done;
-      return after(f.times ? dayOf(f.times, tz) : localTime(ev.start, tz).slice(0, 10), `已更新「${f.title ?? ev.title}」`, { uid: ev.uid });
+      return after(secrets, f.times ? dayOf(f.times, tz) : localTime(ev.start, tz).slice(0, 10), `已更新「${f.title ?? ev.title}」`, { uid: ev.uid });
     },
 
-    async 'calendar.delete'({ uid } = {}) {
-      const c = need();
+    async 'calendar.delete'({ uid } = {}, secrets) {
+      const c = need(secrets);
       const { tz, hit, ev } = await target(c, uid);
       const done = await deleteEvent(hit.href, c, hit.etag).then(() => null, on412(c, ev.uid));
       if (done) return done;
-      return after(localTime(ev.start, tz).slice(0, 10), `已刪除「${ev.title}」`, { uid: ev.uid, deleted: true });
+      return after(secrets, localTime(ev.start, tz).slice(0, 10), `已刪除「${ev.title}」`, { uid: ev.uid, deleted: true });
     },
 
     // §4. No parameters: return the form. Empty timezone/calendar clears that setting.
-    async 'calendar.settings'(input = {}) {
+    async 'calendar.settings'(input = {}, secrets) {
       const s = settings();
       if (['timezone', 'days', 'calendar'].every(k => input[k] === undefined)) {
-        const c = creds();
+        const c = creds(secrets);
         const cals = c ? await listCalendars(c).catch(() => []) : [];
         return { result: s, view: settingsView({ settings: s, days: daysOf(s), cals }) };
       }
@@ -244,8 +242,8 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
 
   return {
     cards: {
-      async upcoming() {
-        const c = creds();
+      async upcoming(secrets) {
+        const c = creds(secrets);
         const callout = (tone, text) => ({ updated_at: new Date().toISOString(), view: { type: 'callout', tone, text } });
         if (!c) return callout('warn', SETUP);
         const now = clock(), days = daysOf(settings());
@@ -265,7 +263,5 @@ export function app(getSecrets, clock = () => new Date(), dataDir = process.env.
 }
 
 if (import.meta.main) {
-  // WIP(2026-11-16): host spec 0.3 delivers secrets in the x-plugin-secrets header and kit 0.3 hands them to
-  // handlers; kit 0.2 can't, so the card says "not set up" until the kit is replaced. Swap this getter then.
-  servePlugin({ manifest, ...app(() => ({})) });
+  servePlugin({ manifest, ...app() });
 }

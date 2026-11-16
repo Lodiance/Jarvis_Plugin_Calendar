@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "version": "0.2.0",
-  "spec": "0.2",
+  "spec": "0.3",
   "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false },
   "cards": [
     { "id": "upcoming", "title": "行事曆", "ttl": 300, "size": { "default": [4, 6], "min": [3, 4] } }

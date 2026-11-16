@@ -4,27 +4,23 @@
 > 未來規劃看 spec,設計決策看 spec/decisions/。
 
 ## 狀態：進行中
-v0.1 和 v0.2 在本 repo 能做的都做完了，對假 Radicale 的測試全過。正式能用要等主程式的 plugin 規格 0.3 和 `jarvis-services` 網路。
+已經接上 kit 0.3：handler 直接收到每次請求的 secrets，28 個測試全過，`plugin:check` 沒有錯誤。還沒在 nas 上對真的 Radicale 跑過，也還沒 commit。
 
 ## 改到哪
-- `plugin.js` 最後的 `WIP(2026-11-16)`：祕密 getter 固定回 `{}`，等 kit 0.3。
-- `spec/calendar-spec.md` 改過，vault 副本還沒同步（`/wiki-sync-check`，使用者手動複製）。
+- `plugin.js`、`plugin.test.js`、`plugin-kit.js`（0.3 副本）、`manifest.json`（`spec: "0.3"`）：已改，還沒 commit。
+- `spec/calendar-spec.md` 第 4 行還寫「尚未實作」，vault 副本也還沒同步（`/wiki-sync-check`，使用者手動複製）。
 
 ## 刻意留的洞（不是 bug,別急著修）
-- 祕密 getter 是空的：真的跑起來卡片永遠顯示「尚未設定」，`plugin:check` 的工具範例會失敗。不要用環境變數繞過（使用者要 nas 正式安裝）。
-- 沒有 `adaptive`、`dialog: "wide"`、`grid` 比例：`plugin-spec.md` 還沒定格式。
 - `calendar.create` 不附 `examples`（spec §10），否則 check 會真的新增行程。
 - 不能把行程搬到別的行事曆；重複行程只讀。
+- 0.3 新元件（`adaptive`、`agenda.bars/allday/strike`、`calendar.items/selected`、`grid` 比例、`dialog: "wide"`）還沒用。規格已經定了，現在可以做，但要先在 nas 上跑通基本功能。
+
+## 真的壞掉的（是 bug）
+- Jarvis 的 `plugin:check` 在 Windows 結束時印出 `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`（libuv）。檢查結果本身正常，問題在主程式那邊。
 
 ## 當前假設（未驗證）
-- kit 0.3 會把祕密當參數交給 handler，形狀未知；`app(getSecrets)` 讓那時只改一行。
-- 0.3 欄位名以 Jarvis 的 `spec/plugin-spec.md` 為準，不同時回頭改本地 spec。
 - 畫面沒在主程式驗證過；Radicale 的 `UID` `prop-filter`、iPhone 對 UTC 時間的顯示只對假伺服器測過。
-
-## 要回 Jarvis repo 處理
-- plugin 規格 0.3：祕密標頭和 kit，以及新元件。
-- `network: true` 的 plugin 容器自動接上 `jarvis-services` 網路（`decisions/0001`）。
-- 全域的模型選擇，以及每個 plugin 一個「允許 AI 使用」開關（spec §10）。
+- nas 上 `network: true` 的容器能透過 `jarvis-services` 連到 Radicale。
 
 ## 下次第一件事
-到 Jarvis repo 做 plugin 規格 0.3。回來後：複製新的 `plugin-kit.js`、換掉 WIP 的 getter，用 nas 上的測試行事曆手動測新增、修改、刪除，以及先在 iPhone 改、再從 Jarvis 改（`412`）。
+把 calendar 裝到 nas，在 `#/dev/plugins` 填 `caldav_url/user/password`。用測試行事曆手動測新增、修改、刪除，再測先在 iPhone 改、然後從 Jarvis 改的情況（應該回 `412`）。跑通之後再接 0.3 的新元件（spec §5–§9）。

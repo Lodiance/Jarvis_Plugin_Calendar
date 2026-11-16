@@ -1,5 +1,5 @@
-// Two layers: the real process the way the Jarvis host runs it (key, manifest, no secrets yet), and the card and
-// tools against a fake Radicale through app(), which takes the secrets kit 0.2 can't deliver yet.
+// Two layers: the real process the way the Jarvis host runs it (key, manifest, x-plugin-secrets header), and the card
+// and tools against a fake Radicale through app(), called with secrets the way kit 0.3 calls them.
 // `npm run plugin:check <this folder>` in the Jarvis repo goes further and checks the views against the component rules.
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,9 +17,10 @@ const manifest = JSON.parse(fs.readFileSync(path.join(here, 'manifest.json'), 'u
 const KEY = 'test-key';
 let proc, base, dataDir, appDir, radicale, secrets, closeFake;
 
-const call = (route, body, key = KEY) => fetch(base + route, {
+const call = (route, body, key = KEY, sec) => fetch(base + route, {
   method: body === undefined ? 'GET' : 'POST',
-  headers: { 'x-plugin-key': key, 'content-type': 'application/json' },
+  headers: { 'x-plugin-key': key, 'content-type': 'application/json',
+    ...sec && { 'x-plugin-secrets': Buffer.from(JSON.stringify(sec)).toString('base64url') } },
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 
@@ -61,7 +62,14 @@ function radicaleHandler(req, res, body) {
 }
 
 const now = zonedToUtc('2026-11-16T10:30', 'Asia/Taipei');
-const plugin = () => app(() => secrets, () => now, appDir);
+// Bind the current `secrets` the way kit 0.3 does: cards(secrets), tools(input, secrets).
+const plugin = () => {
+  const p = app(() => now, appDir);
+  return {
+    cards: { upcoming: () => p.cards.upcoming(secrets) },
+    tools: Object.fromEntries(Object.entries(p.tools).map(([k, f]) => [k, input => f(input, secrets)])),
+  };
+};
 const good = () => ({ caldav_url: radicale + '/u/', caldav_user: 'u', caldav_password: 'pw' });
 const byUid = uid => [...store.values()].find(r => r.ics.includes('UID:' + uid))?.ics;
 
@@ -105,6 +113,13 @@ test('process: without secrets the card asks for setup and tools fail with the s
     assert.equal(r.status, 500);
     assert.match((await r.json()).error, /尚未設定 Radicale/);
   }
+});
+
+test('process: x-plugin-secrets reaches the card and tools', async () => {
+  const card = await (await call('/cards/upcoming', undefined, KEY, good())).json();
+  assert.ok(card.view.children.some(c => c.type === 'agenda'));
+  const r = await call('/tools/calendar.list', { from: '2026-11-16' }, KEY, good());
+  assert.deepEqual((await r.json()).result.map(e => e.uid), ['standup']);
 });
 
 // --- reading (v0.1) ---
