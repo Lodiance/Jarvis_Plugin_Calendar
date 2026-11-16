@@ -64,7 +64,7 @@ export async function fetchEvents(cal, creds, from, to, tz) {
 // --- iCalendar ---
 
 const text = p => p?.value.replace(/\\([\\;,nN])/g, (_, c) => (c === 'n' || c === 'N' ? '\n' : c)) ?? '';
-const nextDay = ymd => new Date(Date.parse(ymd + 'T00:00Z') + 864e5).toISOString().slice(0, 10);
+export const nextDay = ymd => new Date(Date.parse(ymd + 'T00:00Z') + 864e5).toISOString().slice(0, 10);
 
 function duration(v) {
   const m = v.match(/^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
