@@ -61,7 +61,7 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 - 祕密由使用者在 Jarvis 的 `#/dev/plugins` 填寫。主程式每次請求都帶 `x-plugin-secrets` 標頭（UTF-8 JSON 再做 base64url），由 `plugin-kit.js`（`KIT_SPEC` 0.3）解析後交給 handler。
 - 只會帶已經設定的祕密。缺任何一個時，卡片顯示 `callout`（`tone: warn`）「尚未設定 Radicale 連線，到 #/dev/plugins 填寫網址、帳號和密碼」，工具回錯誤。
 - 不要把標頭、祕密或完整的請求寫進日誌或錯誤訊息。
-- nas 上 `caldav_url` 要填容器連得到的位址（主程式 ADR 0012 待決，實作時決定）；PC 上可以直接用 tailnet 網址。
+- nas 上 `caldav_url` 填 `http://radicale:5232/<user>/`：Radicale 加入共用的 `jarvis-services` Docker 網路，主程式讓 `network: true` 的 plugin 容器自動接上同一個網路（`decisions/0001-shared-services-network.md`）。PC 上直接用 tailnet 網址。
 
 ## 4. 設定（`DATA_DIR/settings.json`，v0.2）
 
@@ -157,6 +157,8 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 
 全部是 `internal`：Radicale 不會寄出任何東西。主程式在 `internal` 工具成功後會自動重新抓卡片。
 
+AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫到小模型（例如 nas 上的 Ollama）也看得懂。用哪個模型、允不允許 AI 呼叫本 plugin 的工具，都由主程式決定（plugin 分不出呼叫者是人還是 AI），本 plugin 不做模型設定。
+
 ## 11. 錯誤與斷線
 
 - 連不到 Radicale（逾時 6 秒，主程式的上限是 8 秒）：卡片回非 2xx 和 `{error}`，主程式會顯示上次的快照加「無法連線」。
@@ -175,6 +177,7 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 ## 13. 開發
 
 - 先決條件：主程式的 plugin 規格 0.3（secrets、`adaptive`、`agenda` 的 `bars`、`calendar` 的 `items`、`grid` 比例、`dialog: "wide"`）。完成前可以先寫 CalDAV 和 iCalendar 的部分和測試。
+- nas 正式安裝另外需要：主程式讓 `network: true` 的 plugin 容器接上 `jarvis-services` 網路（`decisions/0001`），以及 Radicale 加入這個網路。
 - 可以讀的文件：Jarvis repo 的 `spec/plugin-spec.md`，以及 `npm run dev` 之後的 `http://127.0.0.1:3000/#/dev/components`。Jarvis repo 的其他檔案（ADR、HANDOFF、主 spec、程式碼）不讀；文件不夠用時，把缺什麼寫進本 repo 的 HANDOFF，回 Jarvis repo 處理。
 - 在 Jarvis repo 跑主程式並載入本 plugin：`JARVIS_PLUGINS=../Plugins npm run dev`（指向 plugin 資料夾的上一層，會取代預設的 plugin 資料夾）。
 - 檢查：在 Jarvis repo `npm run plugin:check ../Plugins/calendar`。
@@ -184,6 +187,5 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 
 ## 14. 待決
 
-- nas 上的容器怎麼連到只在 tailnet 開放的 Radicale（決定 `caldav_url` 在 nas 上填什麼）。
 - 重複行程要不要支援「只改這一次」或「改整個系列」（v0.x 先不支援）。
 - Google iCal 私人網址那一版的時程。
