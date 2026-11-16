@@ -2,3 +2,12 @@
 data/
 .plugin-key
 node_modules/
+
+# --- llm-wiki-scaffold ---
+spec/.session-log
+.claude/settings.local.json
+.claude/*.local.json
+
+# --- Obsidian 殘留（若 vault 曾被連進來） ---
+.obsidian/
+.trash/
