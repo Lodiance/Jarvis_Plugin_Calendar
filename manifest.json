@@ -2,11 +2,28 @@
   "id": "calendar",
   "version": "0.1.0",
   "spec": "0.2",
-  "permissions": { "network": false, "secrets": [], "wiki": false },
+  "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false },
   "cards": [
-    { "id": "main", "title": "calendar", "ttl": 300, "size": { "default": [4, 4], "min": [3, 3] } }
+    { "id": "upcoming", "title": "行事曆", "ttl": 300, "size": { "default": [4, 6], "min": [3, 4] } }
   ],
   "tools": [
-    { "name": "calendar.add", "risk": "internal", "description": "新增一則筆記", "input": { "text": "string" }, "examples": [{ "text": "第一則筆記" }] }
+    {
+      "name": "calendar.list", "risk": "read",
+      "description": "列出使用者行事曆在一段時間內的行程。from、to 是本地時間，格式 YYYY-MM-DD（整天）或 YYYY-MM-DDTHH:MM；to 是 YYYY-MM-DD 時包含那一整天。沒給 from 就是今天，沒給 to 就和 from 同一天。區間最多 62 天。回傳 [{uid, start, end, allday, title, status, location, calendar, recurring}]，start、end 是本地時間；status 是 CONFIRMED、TENTATIVE、CANCELLED 或空字串。",
+      "input": { "from": "string", "to": "string" },
+      "examples": [{ "from": "2026-11-16", "to": "2026-11-22" }]
+    },
+    {
+      "name": "calendar.month", "risk": "read",
+      "description": "顯示某個月的月曆（給畫面用）。month 是 YYYY-MM，date 是選中的日子 YYYY-MM-DD，都可以省略。",
+      "input": { "month": "string", "date": "string" },
+      "examples": [{ "month": "2026-11" }]
+    },
+    {
+      "name": "calendar.event", "risk": "read",
+      "description": "顯示一個行程的細節。uid 和 start 都必填，直接用 calendar.list 回傳的 uid 和 start；重複行程靠 start 分辨是哪一次。",
+      "input": { "uid": "string", "start": "string" },
+      "examples": [{ "uid": "example", "start": "2026-11-16T10:00" }]
+    }
   ]
 }
