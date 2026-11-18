@@ -176,7 +176,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 | v0.1 | 只讀：`upcoming` 卡片、`calendar.list`、`calendar.month`、`calendar.event` | 不改主程式就能裝上；`network`、`secrets` 要使用者確認才會啟動 |
 | v0.2 | 寫入工具、表單、設定 | 更新後 `data/` 和卡片排版都在；新增的工具主程式正確處理 |
 | 回滾 | 換回 v0.1 的映像檔 | 舊版照常運作（v0.2 新增的 `settings.json` 舊版要能忽略） |
-| v0.3 | 配合主程式 0.4 的介面安裝：manifest 加 `setup`、kit 的 `setup(secrets)` 測連線（§3） | nas 上從零只用介面裝好、改版、回滾，`data/` 都在 |
+| v0.3 | 配合主程式 0.4 的介面安裝：manifest 加 `setup`、kit 的 `setup(secrets)` 測連線（§3） | nas 上從零只用介面裝好、改版、回滾，`data/` 都在；只用介面移除後不留任何東西，可以馬上重裝（`jarvis-uninstall-requirements.md` §8） |
 | 之後 | 讀 Google 的 iCal 私人網址（新增 secret `google_ical_url`，唯讀） | 新增權限時，主程式要求重新確認，不會直接放寬 |
 
 ## 13. 開發
