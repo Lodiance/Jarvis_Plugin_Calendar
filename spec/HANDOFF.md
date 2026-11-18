@@ -24,7 +24,7 @@ calendar v0.3 已升到 plugin 規格 0.4（kit 0.4、manifest 加 `setup`、`se
 
 ## 要回 Jarvis repo 處理
 - `jarvis-install-wizard-issues.md` 已經由使用者搬到 Jarvis repo（本 repo 已刪除）。
-- `spec/jarvis-uninstall-requirements.md`：移除機制的需求（移除和徹底刪除兩段式、介面、不重建主程式、清 DB、CLI、驗收），還有 Q1–Q4 待決。使用者會手動同步過去；同步後就從本 repo 刪掉。
+- `spec/jarvis-uninstall-requirements.md`：移除機制的需求（移除和徹底刪除兩段式、介面、不重建主程式、清 DB、CLI、驗收），Q1–Q4 都已經決定。使用者會手動同步過去；同步後就從本 repo 刪掉。
 
 ## 下次第一件事
 在 Jarvis repo 依安裝精靈問題清單和移除需求修好之後，在 nas 部署 Radicale（加入 `jarvis-services`），再用精靈從零重裝 calendar，照文件最後的驗證步驟和 calendar 的測試清單測。nas 的 SSH 用 PuTTY 存的 `Home_NAS`（`plink`）；精靈建立的檔案擁有者是 root，要改檔案得透過 `docker exec jarvis-installer`。
