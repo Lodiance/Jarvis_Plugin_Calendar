@@ -188,7 +188,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 - 檢查：在 Jarvis repo `npm run plugin:check ../Plugins/calendar`。
 - 測試：`npm test`。CalDAV 用 `node:http` 架一個假伺服器回固定的 XML，不依賴真的 Radicale。至少要涵蓋：全天和跨日行程、重複行程展開後的多筆、§5 每一種狀態、時區換算、`412` 衝突、祕密缺漏。
 - 手動測：PC 上可以直接連 nas 的 Radicale（PC 在 tailnet 上）；用一個測試用的行事曆，不要動真的行程。
-- 發佈：推到 GitHub，在 nas 用 Jarvis 的 `scripts/plugin.sh install calendar <git 網址>`，改版用 `update`。主程式 0.4 之後改成在 `#/dev/plugins` 的安裝精靈貼網址安裝，`plugin.sh` 留著當救援用。
+- 發佈：推到 GitHub，在 nas 用 Jarvis 的 `scripts/plugin.sh install calendar <git 網址>`，改版用 `update`。主程式 0.4 之後改成在 `#/dev/plugins` 的安裝精靈貼網址安裝，`plugin.sh` 留著當救援用。安裝精靈只支援公開 repo（clone 時不帶帳號）；本 repo 目前維持私人，所以還不能用精靈裝。
 
 ## 14. 待決
 
