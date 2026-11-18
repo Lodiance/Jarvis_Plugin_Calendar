@@ -183,6 +183,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 
 - 先決條件：主程式的 plugin 規格 0.3（secrets、`adaptive`、`agenda` 的 `bars`、`calendar` 的 `items`、`grid` 比例、`dialog: "wide"`）。完成前可以先寫 CalDAV 和 iCalendar 的部分和測試。
 - nas 正式安裝另外需要：主程式讓 `network: true` 的 plugin 容器接上 `jarvis-services` 網路（`decisions/0001`），以及 Radicale 加入這個網路。
+- 提案（`decisions/0002`）：Radicale 改由 Jarvis 的服務目錄在安裝精靈裡一鍵部署，calendar 的 manifest 加 `services.caldav`（plugin 規格 0.5）。等 Jarvis 定案再改 manifest。
 - 可以讀的文件：Jarvis repo 的 `spec/plugin-spec.md`，以及 `npm run dev` 之後的 `http://127.0.0.1:3000/#/dev/components`。Jarvis repo 的其他檔案（ADR、HANDOFF、主 spec、程式碼）不讀；文件不夠用時，把缺什麼寫進本 repo 的 HANDOFF，回 Jarvis repo 處理。
 - 在 Jarvis repo 跑主程式並載入本 plugin：`JARVIS_PLUGINS=../Plugins npm run dev`（指向 plugin 資料夾的上一層，會取代預設的 plugin 資料夾）。
 - 檢查：在 Jarvis repo `npm run plugin:check ../Plugins/calendar`。
