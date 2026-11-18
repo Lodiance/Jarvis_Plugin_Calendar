@@ -1,4 +1,4 @@
-// Jarvis plugin kit, spec 0.3 (spec/plugin-spec.md). Copy this file into your plugin folder; do not edit the copy.
+// Jarvis plugin kit, spec 0.4 (spec/plugin-spec.md). Copy this file into your plugin folder; do not edit the copy.
 // The canonical version lives in the Jarvis repo at plugin-kit/plugin-kit.js, and its tests check that the
 // example plugins carry an identical copy.
 //
@@ -9,9 +9,9 @@ import http from 'node:http';
 
 // The plugin spec this copy of the kit was written for. `npm run plugin:check` compares a plugin's copy with
 // the host's and names both versions when they differ.
-export const KIT_SPEC = '0.3';
+export const KIT_SPEC = '0.4';
 
-export function servePlugin({ manifest, cards = {}, tools = {} }) {
+export function servePlugin({ manifest, cards = {}, tools = {}, setup }) {
   const key = process.env.PLUGIN_KEY;
   if (!key) throw new Error('PLUGIN_KEY is not set; plugins are started by the Jarvis host');
   const send = (res, code, body) => {
@@ -27,7 +27,12 @@ export function servePlugin({ manifest, cards = {}, tools = {} }) {
     if (secretsHeader) { try { secrets = JSON.parse(Buffer.from(String(secretsHeader), 'base64url').toString('utf8')); } catch {} }
     try {
       if (req.method === 'GET' && pathname === '/manifest') return send(res, 200, manifest);
-      if (req.method === 'GET' && pathname === '/health') return send(res, 200, { ok: true, version: manifest.version });
+      if (req.method === 'GET' && pathname === '/health') {
+        if (!setup) return send(res, 200, { ok: true, version: manifest.version });
+        let setupResult;
+        try { setupResult = await setup(secrets); } catch (e) { setupResult = { ok: false, error: e.message }; }
+        return send(res, 200, { ok: true, version: manifest.version, setup: setupResult });
+      }
       const card = /^\/cards\/([^/]+)$/.exec(pathname);
       if (req.method === 'GET' && card) {
         if (!cards[card[1]]) return send(res, 404, { error: 'no such card' });

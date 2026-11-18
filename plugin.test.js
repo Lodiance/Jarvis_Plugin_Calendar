@@ -1,5 +1,5 @@
 // Two layers: the real process the way the Jarvis host runs it (key, manifest, x-plugin-secrets header), and the card
-// and tools against a fake Radicale through app(), called with secrets the way kit 0.3 calls them.
+// and tools against a fake Radicale through app(), called with secrets the way kit 0.4 calls them.
 // `npm run plugin:check <this folder>` in the Jarvis repo goes further and checks the views against the component rules.
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,7 +62,7 @@ function radicaleHandler(req, res, body) {
 }
 
 const now = zonedToUtc('2026-11-16T10:30', 'Asia/Taipei');
-// Bind the current `secrets` the way kit 0.3 does: cards(secrets), tools(input, secrets).
+// Bind the current `secrets` the way kit 0.4 does: cards(secrets), tools(input, secrets).
 const plugin = () => {
   const p = app(() => now, appDir);
   return {
@@ -120,6 +120,32 @@ test('process: x-plugin-secrets reaches the card and tools', async () => {
   assert.ok(card.view.children.some(c => c.type === 'agenda'));
   const r = await call('/tools/calendar.list', { from: '2026-11-16' }, KEY, good());
   assert.deepEqual((await r.json()).result.map(e => e.uid), ['standup']);
+});
+
+test('process: /health carries setup (spec 0.4), ok only when Radicale answers', async () => {
+  const health = async sec => (await (await call('/health', undefined, KEY, sec)).json());
+  assert.deepEqual(await health(good()), { ok: true, version: manifest.version, setup: { ok: true } });
+  const none = await health();
+  assert.equal(none.ok, true);
+  assert.deepEqual([none.setup.ok, none.setup.field], [false, 'caldav_url']);
+});
+
+test('setup: points at the field that is wrong', async () => {
+  const s = sec => app(() => now, appDir).setup(sec);
+  const field = async sec => (await s(sec)).field;
+  assert.equal(await field({ ...good(), caldav_user: '' }), 'caldav_user');
+  assert.equal(await field({ ...good(), caldav_url: 'radicale' }), 'caldav_url');
+  assert.equal(await field({ ...good(), caldav_password: 'nope' }), 'caldav_password');
+  assert.equal(await field({ ...good(), caldav_url: 'http://127.0.0.1:1/u/' }), 'caldav_url');
+  const bad = await s({ ...good(), caldav_password: 'nope' });
+  assert.doesNotMatch(bad.error, /nope/);
+  assert.deepEqual(await s(good()), { ok: true });
+});
+
+test('manifest: setup only labels declared secrets, settings is a declared tool', () => {
+  assert.deepEqual(Object.keys(manifest.setup.secrets), manifest.permissions.secrets);
+  const t = manifest.tools.find(t => t.name === manifest.setup.settings);
+  assert.ok(t && ['read', 'internal'].includes(t.risk));
 });
 
 // --- reading (v0.1) ---

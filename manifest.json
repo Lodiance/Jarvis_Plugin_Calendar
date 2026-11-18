@@ -1,8 +1,17 @@
 {
   "id": "calendar",
-  "version": "0.2.0",
-  "spec": "0.3",
+  "version": "0.3.0",
+  "spec": "0.4",
   "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false },
+  "setup": {
+    "notes": "行程存在 nas 的 Radicale。Radicale 要先加入 `jarvis-services` 網路，網址才填得到 `http://radicale:5232/<帳號>/`。",
+    "secrets": {
+      "caldav_url": { "label": "Radicale 網址", "type": "url", "example": "http://radicale:5232/me/", "hint": "指到帳號那一層，結尾要有 /" },
+      "caldav_user": { "label": "帳號", "type": "text" },
+      "caldav_password": { "label": "密碼", "type": "password" }
+    },
+    "settings": "calendar.settings"
+  },
   "cards": [
     { "id": "upcoming", "title": "行事曆", "ttl": 300, "size": { "default": [4, 6], "min": [3, 4] } }
   ],

@@ -1,9 +1,9 @@
 # calendar — 主規格
 
 版本：v0.1（2026-11-16 設計定案，來源是 Jarvis 主程式 ADR 0012 和當天的討論）
-狀態：設計定案、尚未實作。plugin 依賴主程式的 plugin 規格 0.3（secrets、新元件），主程式完成之前只能先寫不依賴 0.3 的部分和測試。
+狀態：v0.3 已實作（2026-11-18），依循主程式的 plugin 規格 0.4；只對假 Radicale 測過，還沒在 nas 實裝。
 
-協定以 Jarvis repo 的 `spec/plugin-spec.md` 為準。本文件寫到的 0.3 欄位是主程式「預計」提供的，名稱或行為和 `plugin-spec.md` 不同時，以 `plugin-spec.md` 為準，並回頭修正本文件。
+協定以 Jarvis repo 的 `spec/plugin-spec.md` 為準。名稱或行為和 `plugin-spec.md` 不同時，以 `plugin-spec.md` 為準，並回頭修正本文件。
 
 ## 1. 目的
 
@@ -59,10 +59,11 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false }
 ```
 
-- 祕密由使用者在 Jarvis 的 `#/dev/plugins` 填寫。主程式每次請求都帶 `x-plugin-secrets` 標頭（UTF-8 JSON 再做 base64url），由 `plugin-kit.js`（`KIT_SPEC` 0.3）解析後交給 handler。
+- 祕密由使用者在 Jarvis 的 `#/dev/plugins` 填寫。主程式每次請求都帶 `x-plugin-secrets` 標頭（UTF-8 JSON 再做 base64url），由 `plugin-kit.js`（`KIT_SPEC` 0.4）解析後交給 handler。
 - 只會帶已經設定的祕密。缺任何一個時，卡片顯示 `callout`（`tone: warn`）「尚未設定 Radicale 連線，到 #/dev/plugins 填寫網址、帳號和密碼」，工具回錯誤。
 - 不要把標頭、祕密或完整的請求寫進日誌或錯誤訊息。
 - nas 上 `caldav_url` 填 `http://radicale:5232/<user>/`：Radicale 加入共用的 `jarvis-services` Docker 網路，主程式讓 `network: true` 的 plugin 容器自動接上同一個網路（`decisions/0001-shared-services-network.md`）。PC 上直接用 tailnet 網址。
+- 安裝精靈（規格 0.4，v0.3）：manifest 的 `setup` 給三個祕密加上標籤和網址範例，`settings` 指向 `calendar.settings`。`/health` 的 `setup` 由 `setup(secrets)` 回報：缺哪個祕密就指那個欄位；網址格式不對、連不到、Radicale 回非 2xx，或網址底下沒有行事曆，都指 `caldav_url`；`401` 指 `caldav_password`。只做一次 PROPFIND，錯誤訊息不帶祕密。
 
 ## 4. 設定（`DATA_DIR/settings.json`，v0.2）
 
@@ -175,7 +176,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 | v0.1 | 只讀：`upcoming` 卡片、`calendar.list`、`calendar.month`、`calendar.event` | 不改主程式就能裝上；`network`、`secrets` 要使用者確認才會啟動 |
 | v0.2 | 寫入工具、表單、設定 | 更新後 `data/` 和卡片排版都在；新增的工具主程式正確處理 |
 | 回滾 | 換回 v0.1 的映像檔 | 舊版照常運作（v0.2 新增的 `settings.json` 舊版要能忽略） |
-| v0.3 | 配合主程式 0.4 的介面安裝：manifest 加 `setup`、kit 的 `setup(secrets)` 測連線（`jarvis-0.4-install-requirements.md` §6） | nas 上從零只用介面裝好、改版、回滾，`data/` 都在 |
+| v0.3 | 配合主程式 0.4 的介面安裝：manifest 加 `setup`、kit 的 `setup(secrets)` 測連線（§3） | nas 上從零只用介面裝好、改版、回滾，`data/` 都在 |
 | 之後 | 讀 Google 的 iCal 私人網址（新增 secret `google_ical_url`，唯讀） | 新增權限時，主程式要求重新確認，不會直接放寬 |
 
 ## 13. 開發
@@ -187,7 +188,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 - 檢查：在 Jarvis repo `npm run plugin:check ../Plugins/calendar`。
 - 測試：`npm test`。CalDAV 用 `node:http` 架一個假伺服器回固定的 XML，不依賴真的 Radicale。至少要涵蓋：全天和跨日行程、重複行程展開後的多筆、§5 每一種狀態、時區換算、`412` 衝突、祕密缺漏。
 - 手動測：PC 上可以直接連 nas 的 Radicale（PC 在 tailnet 上）；用一個測試用的行事曆，不要動真的行程。
-- 發佈：推到 GitHub，在 nas 用 Jarvis 的 `scripts/plugin.sh install calendar <git 網址>`，改版用 `update`。主程式 0.4 之後改成在 `#/dev/plugins` 貼網址安裝（提案見 `jarvis-0.4-install-requirements.md`）。
+- 發佈：推到 GitHub，在 nas 用 Jarvis 的 `scripts/plugin.sh install calendar <git 網址>`，改版用 `update`。主程式 0.4 之後改成在 `#/dev/plugins` 的安裝精靈貼網址安裝，`plugin.sh` 留著當救援用。
 
 ## 14. 待決
 

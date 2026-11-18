@@ -46,7 +46,7 @@ function resolveTimes({ allday, start, end }, tz) {
   return { allday: false, start: s, end: e };
 }
 
-// Kit 0.3 hands every handler this request's secrets { caldav_url, caldav_user, caldav_password } ({} when unset):
+// Kit 0.4 hands every handler this request's secrets { caldav_url, caldav_user, caldav_password } ({} when unset):
 // cards as (secrets), tools as (input, secrets). clock() → now; dataDir holds settings.json (§4).
 export function app(clock = () => new Date(), dataDir = process.env.DATA_DIR) {
   const creds = (s = {}) =>
@@ -240,7 +240,22 @@ export function app(clock = () => new Date(), dataDir = process.env.DATA_DIR) {
     },
   };
 
+  // Spec 0.4 /health `setup`: the install wizard's "test connection". Missing → that field; then one PROPFIND.
+  async function setup(s = {}) {
+    const field = ['caldav_url', 'caldav_user', 'caldav_password'].find(k => !s[k]);
+    if (field) return { ok: false, error: '還沒填完 Radicale 的網址、帳號和密碼', field };
+    if (!URL.canParse(s.caldav_url)) return { ok: false, error: '網址格式不對', field: 'caldav_url' };
+    try {
+      if (!(await listCalendars(creds(s))).length) return { ok: false, error: '這個網址底下沒有行事曆，網址要指到帳號那一層（結尾要有 /）', field: 'caldav_url' };
+      return { ok: true };
+    } catch (e) {
+      if (!(e instanceof CalDavError)) throw e;
+      return { ok: false, error: e.message, field: e.status === 401 ? 'caldav_password' : 'caldav_url' };
+    }
+  }
+
   return {
+    setup,
     cards: {
       async upcoming(secrets) {
         const c = creds(secrets);
