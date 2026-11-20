@@ -59,11 +59,13 @@ Jarvis 主程式 ──HTTP──> calendar plugin ──CalDAV──┘
 "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false }
 ```
 
-- 祕密由使用者在 Jarvis 的 `#/dev/plugins` 填寫。主程式每次請求都帶 `x-plugin-secrets` 標頭（UTF-8 JSON 再做 base64url），由 `plugin-kit.js`（`KIT_SPEC` 0.4）解析後交給 handler。
+- 祕密由使用者在 Jarvis 的 `#/dev/plugins` 填寫。主程式每次請求都帶 `x-plugin-secrets` 標頭（UTF-8 JSON 再做 base64url），由 `plugin-kit.js`（`KIT_SPEC` 0.5）解析後交給 handler。
 - 只會帶已經設定的祕密。缺任何一個時，卡片顯示 `callout`（`tone: warn`）「尚未設定 Radicale 連線，到 #/dev/plugins 填寫網址、帳號和密碼」，工具回錯誤。
 - 不要把標頭、祕密或完整的請求寫進日誌或錯誤訊息。
-- nas 上 `caldav_url` 填 `http://radicale:5232/<user>/`：Radicale 加入共用的 `jarvis-services` Docker 網路，主程式讓 `network: true` 的 plugin 容器自動接上同一個網路（`decisions/0001-shared-services-network.md`）。PC 上直接用 tailnet 網址。
-- 安裝精靈（規格 0.4，v0.3）：manifest 的 `setup` 給三個祕密加上標籤和網址範例，`settings` 指向 `calendar.settings`。`/health` 的 `setup` 由 `setup(secrets)` 回報：缺哪個祕密就指那個欄位；網址格式不對、連不到、Radicale 回非 2xx，或網址底下沒有行事曆，都指 `caldav_url`；`401` 指 `caldav_password`。只做一次 PROPFIND，錯誤訊息不帶祕密。
+- nas 上 `caldav_url` 填 `http://radicale:5232/<user>/`：Radicale 在共用的 `jarvis-services` Docker 網路上，主程式讓 `network: true` 的 plugin 容器自動接上同一個網路（`decisions/0001-shared-services-network.md`）。PC 上直接用 tailnet 網址。
+- 服務（規格 0.5）：manifest 宣告 `services.caldav`，三個輸出 `url`、`user`、`password` 對應到三個祕密。安裝精靈的「服務」那一步可以現在部署 Radicale 或選已部署的，精靈把值填進祕密；也可以自己填，plugin 分不出來源（`decisions/0002`）。
+- 安裝精靈（規格 0.4，v0.3）：manifest 的 `setup` 給三個祕密加上標籤和網址範例，`settings` 指向 `calendar.settings`。`/health` 的 `setup` 由 `setup(secrets)` 回報：缺哪個祕密就指那個欄位；網址格式不對、連不到、Radicale 回非 2xx 都指 `caldav_url`；`401` 指 `caldav_password`。錯誤訊息不帶祕密。
+- 帳號底下沒有行事曆（剛部署的 Radicale 就是這樣）：`setup` 用 `MKCALENDAR` 在帳號底下建一本叫「行事曆」的事件行事曆，之後 iPhone 加入同一個帳號就看得到。只在一本都沒有時建，所以再測一次不會多建。建不起來（例如網址指到 Radicale 根目錄）才回錯誤並指 `caldav_url`。新建的行事曆沒有 `calendar-timezone`，所以要在精靈的設定那一步填時區，否則照 §2 用 `Europe/London`。
 
 ## 4. 設定（`DATA_DIR/settings.json`，v0.2）
 
@@ -183,7 +185,7 @@ AI：plugin 只負責工具和給模型看的 `description`、`examples`，寫�
 
 - 先決條件：主程式的 plugin 規格 0.3（secrets、`adaptive`、`agenda` 的 `bars`、`calendar` 的 `items`、`grid` 比例、`dialog: "wide"`）。完成前可以先寫 CalDAV 和 iCalendar 的部分和測試。
 - nas 正式安裝另外需要：主程式讓 `network: true` 的 plugin 容器接上 `jarvis-services` 網路（`decisions/0001`），以及 Radicale 加入這個網路。
-- 提案（`decisions/0002`）：Radicale 改由 Jarvis 的服務目錄在安裝精靈裡一鍵部署，calendar 的 manifest 加 `services.caldav`（plugin 規格 0.5）。等 Jarvis 定案再改 manifest。
+- 規格 0.5（`decisions/0002`，2026-11-20 定案）：Radicale 由 Jarvis 的服務目錄在安裝精靈裡一鍵部署，calendar 的 manifest 宣告 `services.caldav`。
 - 可以讀的文件：Jarvis repo 的 `spec/plugin-spec.md`，以及 `npm run dev` 之後的 `http://127.0.0.1:3000/#/dev/components`。Jarvis repo 的其他檔案（ADR、HANDOFF、主 spec、程式碼）不讀；文件不夠用時，把缺什麼寫進本 repo 的 HANDOFF，回 Jarvis repo 處理。
 - 在 Jarvis repo 跑主程式並載入本 plugin：`JARVIS_PLUGINS=../Plugins npm run dev`（指向 plugin 資料夾的上一層，會取代預設的 plugin 資料夾）。
 - 檢查：在 Jarvis repo `npm run plugin:check ../Plugins/calendar`。

@@ -1,6 +1,6 @@
 # 0002 — Radicale 這類服務由 Jarvis 的服務目錄一鍵部署，生命週期和 plugin 分開
 
-日期：2026-11-19　狀態：提案（等 Jarvis 定案，需求文件已移到 Jarvis repo）
+日期：2026-11-19　狀態：採用（2026-11-20，Jarvis plugin 規格 0.5、ADR 0016）
 取代：0001 裡「使用者在服務自己的 compose 加入 `jarvis-services`」那一段。0001 其餘部分（共用網路 `jarvis-services`、`network: true` 自動接上）照舊。
 
 ## 問題

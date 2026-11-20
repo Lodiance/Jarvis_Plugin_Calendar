@@ -1,5 +1,6 @@
 // CalDAV client and the slice of iCalendar this plugin reads (spec §2 讀取/時區, §5 狀態). No dependencies.
 // creds = { url, user, password } (the three secrets). Error messages never include them or the URL.
+import { randomUUID } from 'node:crypto';
 
 export class CalDavError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -47,6 +48,16 @@ export async function listCalendars(creds) {
     const timezone = unxml(els(r, 'calendar-timezone')[0]).match(/^TZID:(.+)$/m)?.[1].trim();
     return [{ href, name, timezone }];
   });
+}
+
+// MKCALENDAR (RFC 4791 §5.3.1) an event calendar called `name` under the account root `creds.url`; returns its href.
+export async function makeCalendar(creds, name) {
+  const href = new URL(randomUUID() + '/', creds.url.replace(/\/?$/, '/')).href;
+  await dav('MKCALENDAR', href, creds,
+    `<?xml version="1.0" encoding="utf-8"?><C:mkcalendar ${NS}><D:set><D:prop><D:displayname>${xmlText(name)}</D:displayname>` +
+    `<C:supported-calendar-component-set><C:comp name="VEVENT"/></C:supported-calendar-component-set></D:prop></D:set></C:mkcalendar>`,
+    { headers: { 'content-type': 'application/xml; charset=utf-8' }, ok: [201] });
+  return href;
 }
 
 // Radicale expands recurring events into one VEVENT per occurrence, so no RRULE handling here.

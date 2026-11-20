@@ -5,7 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { servePlugin } from './plugin-kit.js';
 import {
-  listCalendars, fetchEvents, findEvent, putEvent, deleteEvent, isRecurring, parseEvents,
+  listCalendars, makeCalendar, fetchEvents, findEvent, putEvent, deleteEvent, isRecurring, parseEvents,
   newEventIcs, editEventIcs, localTime, zonedToUtc, nextDay, CalDavError,
 } from './caldav.js';
 import { upcomingView, monthView, eventView, formView, settingsView } from './views.js';
@@ -241,12 +241,18 @@ export function app(clock = () => new Date(), dataDir = process.env.DATA_DIR) {
   };
 
   // Spec 0.4 /health `setup`: the install wizard's "test connection". Missing → that field; then one PROPFIND.
+  // A Radicale just deployed by the wizard (spec 0.5 `services`) has an empty account: make the first calendar
+  // here. Only when there is none, so a second test finds it and makes nothing.
   async function setup(s = {}) {
     const field = ['caldav_url', 'caldav_user', 'caldav_password'].find(k => !s[k]);
     if (field) return { ok: false, error: '還沒填完 Radicale 的網址、帳號和密碼', field };
     if (!URL.canParse(s.caldav_url)) return { ok: false, error: '網址格式不對', field: 'caldav_url' };
     try {
-      if (!(await listCalendars(creds(s))).length) return { ok: false, error: '這個網址底下沒有行事曆，網址要指到帳號那一層（結尾要有 /）', field: 'caldav_url' };
+      const c = creds(s);
+      if (!(await listCalendars(c)).length) {
+        try { await makeCalendar(c, '行事曆'); } catch (e) { if (!(e instanceof CalDavError) || e.status === 401) throw e; }
+        if (!(await listCalendars(c)).length) return { ok: false, error: '這個網址底下沒有行事曆，也沒辦法建立：網址要指到帳號那一層（結尾要有 /）', field: 'caldav_url' };
+      }
       return { ok: true };
     } catch (e) {
       if (!(e instanceof CalDavError)) throw e;

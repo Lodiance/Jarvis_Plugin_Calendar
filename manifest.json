@@ -1,10 +1,13 @@
 {
   "id": "calendar",
   "version": "0.3.0",
-  "spec": "0.4",
+  "spec": "0.5",
   "permissions": { "network": true, "secrets": ["caldav_url", "caldav_user", "caldav_password"], "wiki": false },
+  "services": {
+    "caldav": { "secrets": { "url": "caldav_url", "user": "caldav_user", "password": "caldav_password" } }
+  },
   "setup": {
-    "notes": "行程存在 nas 的 Radicale。Radicale 要先加入 `jarvis-services` 網路，網址才填得到 `http://radicale:5232/<帳號>/`。",
+    "notes": "行程存在 nas 的 Radicale。沒有 Radicale 的話，安裝精靈可以幫你部署；已經有的話，選它或自己填 `http://radicale:5232/<帳號>/`（Radicale 要在 `jarvis-services` 網路上）。",
     "secrets": {
       "caldav_url": { "label": "Radicale 網址", "type": "url", "example": "http://radicale:5232/me/", "hint": "指到帳號那一層，結尾要有 /" },
       "caldav_user": { "label": "帳號", "type": "text" },

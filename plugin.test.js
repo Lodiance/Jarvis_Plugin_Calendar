@@ -33,7 +33,10 @@ const SEED = {
   '/u/cal/c.ics': ics(['UID:xmas', 'DTSTART;VALUE=DATE:20261225', 'SUMMARY:聖誕節']),
 };
 let store, etagN, sabotage; // sabotage: the next PUT/DELETE finds the event changed elsewhere first
-const reset = () => { store = new Map(Object.entries(SEED).map(([h, d]) => [h, { ics: d, etag: `"e${etagN = (etagN ?? 0) + 1}"` }])); sabotage = false; };
+// account: 'ready' has the seeded calendar; 'empty' is a fresh Radicale until a MKCALENDAR; 'locked' refuses MKCALENDAR.
+let account, made;
+const reset = () => { store = new Map(Object.entries(SEED).map(([h, d]) => [h, { ics: d, etag: `"e${etagN = (etagN ?? 0) + 1}"` }])); sabotage = false; account = 'ready'; made = []; };
+const EMPTY = `<?xml version="1.0"?><multistatus xmlns="DAV:"><response><href>/u/</href><propstat><prop><resourcetype><collection/></resourcetype></prop></propstat></response></multistatus>`;
 const multistatus = body => `<?xml version="1.0"?><multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">${body}</multistatus>`;
 const PROPFIND = multistatus(`<response><href>/u/cal/</href><propstat><prop><displayname>個人</displayname>
   <resourcetype><collection/><C:calendar/></resourcetype><C:calendar-timezone>BEGIN:VTIMEZONE&#13;
@@ -52,7 +55,12 @@ function radicaleHandler(req, res, body) {
     sabotage = false;
     cur.ics = cur.ics.replace(/SUMMARY:[^\r\n]*/, 'SUMMARY:別處改的'); cur.etag = `"e${++etagN}"`;
   }
-  if (req.method === 'PROPFIND') return res.writeHead(207).end(PROPFIND);
+  if (req.method === 'PROPFIND') return res.writeHead(207).end(account === 'ready' ? PROPFIND : EMPTY);
+  if (req.method === 'MKCALENDAR') {
+    if (account === 'locked') return res.writeHead(403).end();
+    made.push({ url: req.url, body }); account = 'ready';
+    return res.writeHead(201).end();
+  }
   if (req.method === 'REPORT') return res.writeHead(207).end(report(body));
   const im = req.headers['if-match'], inm = req.headers['if-none-match'];
   if ((inm === '*' && cur) || (im && im !== cur?.etag)) return res.writeHead(412).end();
@@ -117,7 +125,7 @@ test('process: without secrets the card asks for setup and tools fail with the s
 
 test('process: x-plugin-secrets reaches the card and tools', async () => {
   const card = await (await call('/cards/upcoming', undefined, KEY, good())).json();
-  assert.ok(card.view.children.some(c => c.type === 'agenda'));
+  assert.notEqual(card.view.type, 'callout'); // the process uses the real clock, so whether there are events depends on today
   const r = await call('/tools/calendar.list', { from: '2026-11-16' }, KEY, good());
   assert.deepEqual((await r.json()).result.map(e => e.uid), ['standup']);
 });
@@ -140,6 +148,22 @@ test('setup: points at the field that is wrong', async () => {
   const bad = await s({ ...good(), caldav_password: 'nope' });
   assert.doesNotMatch(bad.error, /nope/);
   assert.deepEqual(await s(good()), { ok: true });
+  assert.deepEqual(made, []);
+});
+
+test('setup: a fresh Radicale account gets one calendar; one that refuses MKCALENDAR says so', async () => {
+  const s = () => app(() => now, appDir).setup(good());
+  account = 'empty';
+  assert.deepEqual(await s(), { ok: true });
+  assert.equal(made.length, 1);
+  assert.match(made[0].url, /^\/u\/[\da-f-]{36}\/$/);
+  assert.match(made[0].body, /<D:displayname>行事曆<\/D:displayname>[\s\S]*<C:comp name="VEVENT"\/>/);
+  assert.deepEqual(await s(), { ok: true });
+  assert.equal(made.length, 1); // the second test finds it and makes nothing
+  account = 'locked';
+  const r = await s();
+  assert.deepEqual([r.ok, r.field], [false, 'caldav_url']);
+  assert.match(r.error, /沒有行事曆/);
 });
 
 test('manifest: setup only labels declared secrets, settings is a declared tool', () => {

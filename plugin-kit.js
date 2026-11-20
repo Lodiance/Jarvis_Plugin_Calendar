@@ -1,4 +1,4 @@
-// Jarvis plugin kit, spec 0.4 (spec/plugin-spec.md). Copy this file into your plugin folder; do not edit the copy.
+// Jarvis plugin kit, spec 0.5 (spec/plugin-spec.md). Copy this file into your plugin folder; do not edit the copy.
 // The canonical version lives in the Jarvis repo at plugin-kit/plugin-kit.js, and its tests check that the
 // example plugins carry an identical copy.
 //
@@ -9,7 +9,7 @@ import http from 'node:http';
 
 // The plugin spec this copy of the kit was written for. `npm run plugin:check` compares a plugin's copy with
 // the host's and names both versions when they differ.
-export const KIT_SPEC = '0.4';
+export const KIT_SPEC = '0.5';
 
 export function servePlugin({ manifest, cards = {}, tools = {}, setup }) {
   const key = process.env.PLUGIN_KEY;
