@@ -10,7 +10,7 @@
   對開發沒有用，只會浪費 context。
 - **vault 唯讀**。wiki 由使用者手動維護，agent 一律不寫入。
 - wiki 內容與本地 `spec/` 衝突時，**以本地 spec/ 為準**，並主動指出衝突。
-- **Jarvis repo**（`C:/Users/mouse/Desktop/Jordan_Data/Personal/Code/Dev/Jarvis/Dashboard`）：
+- **Jarvis repo**（`F:/Workspace/Dev/Jarvis/Dashboard`）：
   只讀 `spec/plugin-spec.md` 和 `#/dev/components`（主程式 `npm run dev` 後的
   `http://127.0.0.1:3000/#/dev/components`）；Jarvis repo 的其他檔案一律不讀。
   文件不夠用時記進 HANDOFF，回 Jarvis repo 處理。
